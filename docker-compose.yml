@@ -1,0 +1,43 @@
+# SecScan ni Docker'da ishga tushirish.
+#
+#   docker compose up -d --build        # web ilovani ko'taradi -> http://localhost:8000
+#   docker compose --profile tools pull # (ixtiyoriy) skaner image'larini oldindan yuklash
+#   docker compose logs -f secscan      # loglar
+#   docker compose down                 # to'xtatish
+#
+# `secscan` xizmati host Docker soketi orqali skaner konteynerlarini ishga
+# tushiradi (Docker-out-of-Docker). Hisobotlar `secscan_reports` named volume'da.
+# Skanlanadigan kod `SCAN_DIR` (standart: shu papka) orqali /workspace ga ulanadi.
+
+services:
+  secscan:
+    build: .
+    image: secscan:latest
+    restart: unless-stopped
+    ports:
+      - "${SECSCAN_PORT:-8000}:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock   # DooD: host Docker daemon
+      - secscan_reports:/app/reports                 # hisobotlar (named volume)
+      - "${SCAN_DIR:-.}:/workspace:ro"               # skanlanadigan kod (host papkasi)
+
+  # --- Quyidagilar faqat skaner image'larini oldindan yuklash uchun ---
+  # `up` bilan avtomatik ishga tushmaydi (profiles: tools).
+  # Versiyalarni `.env` orqali boshqaring (TRIVY_IMAGE, GITLEAKS_IMAGE, SEMGREP_IMAGE).
+  trivy:
+    image: ${TRIVY_IMAGE:-aquasec/trivy:latest}
+    profiles: ["tools"]
+    command: ["--version"]
+
+  gitleaks:
+    image: ${GITLEAKS_IMAGE:-zricethezav/gitleaks:latest}
+    profiles: ["tools"]
+    command: ["version"]
+
+  semgrep:
+    image: ${SEMGREP_IMAGE:-semgrep/semgrep:latest}
+    profiles: ["tools"]
+    command: ["semgrep", "--version"]
+
+volumes:
+  secscan_reports:

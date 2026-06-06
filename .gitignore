@@ -1,0 +1,20 @@
+# Sozlamalar (sirlar bo'lishi mumkin)
+.env
+
+# Skan natijalari
+reports/
+*.tar
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Muharrir / vosita / OS
+.claude/
+.idea/
+.vscode/
+*.log
+.DS_Store
+Thumbs.db

@@ -1,0 +1,11 @@
+# Build kontekstidan chiqarib tashlanadi (image build stage frontendni o'zi quradi)
+.git
+reports
+*.tar
+**/__pycache__
+*.py[cod]
+.venv
+venv
+frontend/node_modules
+frontend/dist
+.claude

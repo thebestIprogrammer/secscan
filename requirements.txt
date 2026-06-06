@@ -1,0 +1,4 @@
+# Faqat VEB INTERFEYS (python run.py serve) uchun kerak.
+# CLI (scan / pull) hech qanday tashqi paketsiz, faqat Docker + Python bilan ishlaydi.
+fastapi>=0.110
+uvicorn>=0.27

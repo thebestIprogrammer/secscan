@@ -1,0 +1,125 @@
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  margin: 0; background: #f4f5f7; color: #1f2733;
+}
+a { color: #1565c0; }
+
+header.app {
+  background: #1f2733; color: #fff; padding: 18px 32px;
+  display: flex; align-items: baseline; gap: 12px;
+}
+header.app h1 { margin: 0; font-size: 20px; }
+header.app .sub { color: #aeb6c2; font-size: 13px; }
+header.app .ver { margin-left: auto; color: #8a93a0; font-size: 12px; }
+
+main { max-width: 1100px; margin: 0 auto; padding: 24px 32px 60px; }
+
+.card {
+  background: #fff; border-radius: 12px; padding: 20px 22px; margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.card h2 {
+  font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em;
+  color: #5b6573; margin: 0 0 14px;
+}
+
+label { font-size: 13px; color: #34404f; display: block; margin-bottom: 6px; }
+input[type='text'], select {
+  width: 100%; padding: 10px 12px; font-size: 14px;
+  border: 1px solid #cdd3da; border-radius: 8px; background: #fff;
+}
+.row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; }
+.checks { display: flex; gap: 16px; flex-wrap: wrap; margin: 0 0 4px; }
+.checks label {
+  display: flex; align-items: center; gap: 6px; margin: 0;
+  font-size: 13px; cursor: pointer;
+}
+.hint { color: #8a93a0; font-size: 12px; margin-top: 8px; }
+
+button.primary {
+  background: #1565c0; color: #fff; border: 0; border-radius: 8px;
+  padding: 11px 22px; font-size: 14px; font-weight: 600; cursor: pointer;
+  margin-top: 16px;
+}
+button.primary:hover { background: #0d47a1; }
+button.primary:disabled { background: #9aa3b0; cursor: not-allowed; }
+
+pre.log {
+  background: #11161d; color: #cdd6e0; padding: 14px 16px; border-radius: 8px;
+  font-size: 12.5px; line-height: 1.6; max-height: 240px; overflow: auto;
+  font-family: Consolas, monospace; white-space: pre-wrap; margin: 0;
+}
+.spinner {
+  display: inline-block; width: 14px; height: 14px; border: 2px solid #cdd3da;
+  border-top-color: #1565c0; border-radius: 50%;
+  animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 8px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.cards { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.sev {
+  background: #fff; border: 1px solid #eef0f3; border-radius: 10px;
+  padding: 12px 18px; min-width: 86px; text-align: center;
+}
+.sev .n { font-size: 26px; font-weight: 700; line-height: 1; }
+.sev .l { font-size: 10.5px; color: #7a8694; margin-top: 5px; letter-spacing: 0.04em; }
+
+.toolbar { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.btn-link {
+  display: inline-block; text-decoration: none; background: #eef2f7; color: #1565c0;
+  padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
+}
+.btn-link:hover { background: #e0e7f0; }
+
+iframe.report {
+  width: 100%; height: 560px; border: 1px solid #e4e7eb;
+  border-radius: 10px; background: #fff;
+}
+
+table { width: 100%; border-collapse: collapse; }
+th {
+  text-align: left; font-size: 11px; text-transform: uppercase; color: #7a8694;
+  padding: 8px 10px; border-bottom: 2px solid #eef0f3;
+}
+td { padding: 10px; border-bottom: 1px solid #eef0f3; font-size: 13px; }
+.tgt { font-family: Consolas, monospace; font-size: 12px; word-break: break-all; }
+.mini {
+  display: inline-block; color: #fff; border-radius: 10px; padding: 1px 8px;
+  font-size: 11px; font-weight: 700; margin-right: 4px;
+}
+.err { color: #c62828; font-weight: 600; }
+.empty { color: #8a93a0; font-size: 13px; }
+.banner-err {
+  background: #fdecea; color: #b71c1c; border: 1px solid #f5c6c2;
+  padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 14px;
+}
+
+/* --- Yangi skan formasi --- */
+.field-label { font-size: 13px; color: #34404f; margin-bottom: 7px; font-weight: 600; }
+.cat-label { font-size: 11.5px; color: #8a93a0; margin: 8px 0 4px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .03em; }
+
+/* Tur — segmented toggle */
+.seg { display: inline-flex; border: 1px solid #cdd3da; border-radius: 9px; overflow: hidden; }
+.seg button {
+  background: #fff; border: 0; padding: 9px 18px; font-size: 13.5px;
+  cursor: pointer; color: #5b6573; transition: background .12s;
+}
+.seg button + button { border-left: 1px solid #cdd3da; }
+.seg button:hover:not(.active) { background: #f0f3f7; }
+.seg button.active { background: #1565c0; color: #fff; font-weight: 600; }
+
+/* Yo'l maydoni (ikonkali) */
+.path-input { position: relative; }
+.path-input .ic {
+  position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+  font-size: 16px; opacity: .65; pointer-events: none;
+}
+.path-input input { padding-left: 40px; font-family: Consolas, monospace; font-size: 13.5px; }
+
+/* Tezkor tanlash (ixtiyoriy dropdown) */
+.quickpick { display: flex; align-items: center; gap: 9px; margin-top: 9px; }
+.quickpick > span { font-size: 12.5px; color: #8a93a0; white-space: nowrap; }
+.quickpick select { flex: 1; padding: 7px 10px; font-size: 13px; }
+

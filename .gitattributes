@@ -1,0 +1,11 @@
+# Qator oxirlarini normallashtirish (Windows/Linux aralashmasin)
+* text=auto eol=lf
+
+# Skriptlar doim LF
+*.sh text eol=lf
+*.py text eol=lf
+
+# Binar fayllar
+*.png binary
+*.jpg binary
+*.tar binary
