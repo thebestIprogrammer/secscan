@@ -30,11 +30,11 @@ export default function App() {
     })
   }
 
-  async function onScan(target: string, type: string, tools: string[]) {
+  async function onScan(target: string, type: string, tools: string[], mode: string) {
     setError('')
     setBusy(true)
     try {
-      const s = await api.createScan({ target, type, tools })
+      const s = await api.createScan({ target, type, tools, mode })
       setScan(s)
       startPolling(s.id)
     } catch (e) {

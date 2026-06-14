@@ -42,6 +42,7 @@ class ToolInfo(BaseModel):
     category: str
     target_types: List[str]
     default_on: bool
+    offline_support: str                   # yes | cache | no
 
 
 class Meta(BaseModel):
@@ -55,6 +56,7 @@ class ScanRequest(BaseModel):
     target: str
     type: str = "fs"                       # fs | image | url
     tools: Optional[List[str]] = None      # None -> standart to'plam
+    mode: str = "online"                   # online | offline
 
 
 class Scan(BaseModel):
@@ -63,6 +65,7 @@ class Scan(BaseModel):
     target: str
     type: str
     tools: List[str]
+    mode: str = "online"
     log: List[str] = []
     summary: Optional[dict] = None
     report_url: Optional[str] = None
@@ -175,13 +178,13 @@ def create_app(reports_dir: str = "reports") -> FastAPI:
     jobs: Dict[str, dict] = {}
     os.makedirs(reports_dir, exist_ok=True)
 
-    def _run_job(job_id: str, target: str, target_type: str, tools: list):
+    def _run_job(job_id: str, target: str, target_type: str, tools: list, mode: str):
         job = jobs[job_id]
-        job["log"].append(f"Skan boshlandi: {target} ({target_type})")
+        job["log"].append(f"Skan boshlandi: {target} ({target_type}, {mode})")
         try:
             run = engine.run_scan(
                 target, target_type, tools,
-                output_dir=reports_dir, pull=True,
+                output_dir=reports_dir, pull=True, mode=mode,
                 progress=lambda m: job["log"].append(m),
             )
             rel_html = os.path.relpath(run.html_path, reports_dir).replace(os.sep, "/")
@@ -215,15 +218,16 @@ def create_app(reports_dir: str = "reports") -> FastAPI:
         invalid = set(tools) - valid
         if invalid:
             raise HTTPException(400, f"Noma'lum tool: {', '.join(sorted(invalid))}")
+        mode = req.mode if req.mode in ("online", "offline") else "online"
 
         job_id = uuid.uuid4().hex[:12]
         jobs[job_id] = {
             "id": job_id, "status": "running", "target": target,
-            "type": req.type, "tools": tools, "log": [],
+            "type": req.type, "tools": tools, "mode": mode, "log": [],
             "summary": None, "report_url": None, "json_url": None, "error": None,
         }
         threading.Thread(
-            target=_run_job, args=(job_id, target, req.type, tools), daemon=True
+            target=_run_job, args=(job_id, target, req.type, tools, mode), daemon=True
         ).start()
         return jobs[job_id]
 

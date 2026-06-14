@@ -59,6 +59,9 @@ class Config:
         self.gosec_image = os.getenv("GOSEC_IMAGE", "securego/gosec:latest")
         self.testssl_image = os.getenv("TESTSSL_IMAGE", "drwetter/testssl.sh:latest")
         self.zap_image = os.getenv("ZAP_IMAGE", "ghcr.io/zaproxy/zaproxy:stable")
+        self.bearer_image = os.getenv("BEARER_IMAGE", "bearer/bearer:latest")
+        self.syft_image = os.getenv("SYFT_IMAGE", "anchore/syft:latest")
+        self.kubescape_image = os.getenv("KUBESCAPE_IMAGE", "quay.io/kubescape/kubescape-cli:latest")
 
         # Semgrep ruleset: auto | p/ci | p/owasp-top-ten | p/security-audit ...
         self.semgrep_config = os.getenv("SECSCAN_SEMGREP_CONFIG", "auto")
@@ -68,6 +71,9 @@ class Config:
 
         # CI uchun: shu daraja va undan yuqori topilsa, chiqish kodi != 0.
         self.fail_on = os.getenv("SECSCAN_FAIL_ON", "none").lower()
+
+        # Ishlash rejimi: online (bazalarni yangilaydi) | offline (kesh, internetsiz)
+        self.mode = os.getenv("SECSCAN_MODE", "online").lower()
 
         # Skandan chiqarib tashlanadigan papkalar (vergul bilan).
         self.exclude_dirs = [

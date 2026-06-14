@@ -6,7 +6,7 @@ kamchiliklarni **bitta umumiy hisobotga** (HTML + JSON) jamlaydigan vosita.
 Skanerlar lokalga **o'rnatilmaydi** — har biri o'z rasmiy Docker image'ida
 ishlaydi. Orkestratsiya va hisobot — toza Python (tashqi kutubxonasiz).
 
-## Nima tekshiriladi (16 ta tool)
+## Nima tekshiriladi (19 ta tool)
 
 Har bir tool UI/CLI'da **alohida yoqib-o'chiriladi**. Nishon turiga (papka / image /
 URL) qarab mos toollar ishlaydi.
@@ -14,15 +14,33 @@ URL) qarab mos toollar ishlaydi.
 | Toifa | Toollar | Nimani topadi |
 |-------|---------|---------------|
 | **Bog'liqlik / CVE** (SCA) | [Trivy](https://github.com/aquasecurity/trivy), [Grype](https://github.com/anchore/grype), [OSV-Scanner](https://github.com/google/osv-scanner) | Kutubxona/paketlardagi ma'lum zaifliklar (uchta turli baza) |
+| **SBOM** | [Syft](https://github.com/anchore/syft) | Komponentlar ro'yxati (CycloneDX/SPDX) — `raw/syft.json` da |
 | **Maxfiy kalit** (Secrets) | [Gitleaks](https://github.com/gitleaks/gitleaks), [TruffleHog](https://github.com/trufflesecurity/trufflehog) | Parol, API token, private key (TruffleHog tirikligini ham tekshiradi) |
-| **Kod zaifligi** (SAST) | [Semgrep](https://github.com/semgrep/semgrep), [Bandit](https://github.com/PyCQA/bandit) (Python), [gosec](https://github.com/securego/gosec) (Go) | Koddagi xavfli pattern'lar (SQLi, injection…) |
-| **Xato sozlama / IaC** | Trivy, [Hadolint](https://github.com/hadolint/hadolint), [Checkov](https://github.com/bridgecrewio/checkov), [KICS](https://github.com/Checkmarx/kics), [kube-linter](https://github.com/stackrox/kube-linter), [Dockle](https://github.com/goodwithtech/dockle) | Dockerfile, compose, K8s, Terraform, Ansible, Helm; image CIS lint |
+| **Kod zaifligi** (SAST) | [Semgrep](https://github.com/semgrep/semgrep), [Bandit](https://github.com/PyCQA/bandit) (Python), [gosec](https://github.com/securego/gosec) (Go), [Bearer](https://github.com/Bearer/bearer) (privacy/PII) | Koddagi xavfli pattern'lar + maxfiy ma'lumot oqimlari |
+| **Xato sozlama / IaC** | Trivy, [Hadolint](https://github.com/hadolint/hadolint), [Checkov](https://github.com/bridgecrewio/checkov), [KICS](https://github.com/Checkmarx/kics), [kube-linter](https://github.com/stackrox/kube-linter), [Kubescape](https://github.com/kubescape/kubescape), [Dockle](https://github.com/goodwithtech/dockle) | Dockerfile, K8s, Terraform, Ansible, Helm; K8s compliance (NSA/MITRE/CIS); image CIS lint |
 | **DAST** (web) | [Nuclei](https://github.com/projectdiscovery/nuclei), [testssl.sh](https://github.com/drwetter/testssl.sh) (TLS), [OWASP ZAP](https://www.zaproxy.org/) | Ishlab turgan web-ilova: shablon skani, TLS/SSL tahlili, baseline DAST |
 
-**Nishon turlari:** `fs` (papka/kod) → SCA, secrets, SAST, IaC toollari · `image`
-(Docker image) → Trivy, Grype, Dockle · `url` (DAST) → Nuclei, testssl, ZAP.
+**Nishon turlari:** `fs` (papka/kod) → SCA, SBOM, secrets, SAST, IaC toollari · `image`
+(Docker image) → Trivy, Grype, Syft, Dockle · `url` (DAST) → Nuclei, testssl, ZAP.
 
 > ZAP standart holatda **o'chirilgan** (og'ir image, sekin) — kerak bo'lsa belgilang.
+
+## Onlayn / Offline rejim
+
+Skanni ikki rejimda ishlatish mumkin (UI'dagi **Rejim** tugmasi yoki CLI `--offline`):
+
+- **Onlayn** (standart) — CVE bazalari va shablonlar yangilanadi; hamma tool ishlaydi.
+- **Offline** — bazalar **keshdan** ishlatiladi (yangilanmaydi); internet talab
+  qiladigan toollar avtomatik **o'tkazib yuboriladi**. Air-gapped muhit uchun.
+
+> Offline'dan oldin **bir marta onlayn skan** qilib keshni "isiting" (Trivy/Grype
+> bazasi, Nuclei shablonlari named volume'larga saqlanadi) — keyin internetsiz ishlaydi.
+
+| Tool | Offline holati |
+|------|----------------|
+| Gitleaks, TruffleHog, Bandit, gosec, Hadolint, Checkov, KICS, kube-linter, Dockle, testssl, ZAP | ✅ to'liq |
+| Trivy, Grype, Nuclei | 🟡 kesh kerak (oldindan isitiladi) |
+| Semgrep, OSV-Scanner | ❌ internet kerak (offline'da o'tkazib yuboriladi) |
 
 ## Talablar
 
@@ -180,10 +198,11 @@ python run.py version                           # versiya
 | Tanlov | Vazifa | Standart |
 |--------|--------|----------|
 | `--type fs\|image\|url` | `fs` = papka/kod, `image` = Docker image, `url` = DAST | `fs` |
-| `--tools` | Vergul bilan tool kalitlari: `trivy,grype,osv,gitleaks,trufflehog,semgrep,bandit,gosec,hadolint,checkov,kics,kubelinter,dockle,nuclei,testssl,zap` | standart (ZAP'siz) |
+| `--tools` | Vergul bilan tool kalitlari: `trivy,grype,osv,syft,gitleaks,trufflehog,semgrep,bandit,gosec,bearer,hadolint,checkov,kics,kubelinter,kubescape,dockle,nuclei,testssl,zap` | standart (ZAP'siz) |
 | `--output <papka>` | Hisobotlar saqlanadigan papka | `reports` |
 | `--fail-on <daraja>` | `none\|low\|medium\|high\|critical` — shu daraja+ topilsa chiqish kodi `2` | `none` |
 | `--no-pull` | Image'larni avtomatik yuklamaslik (tezroq) | — |
+| `--offline` | Offline rejim: bazalarni yangilamaydi (keshdan), internet talab qiladiganlarni o'tkazib yuboradi | — |
 | `--open` | Tugagach HTML hisobotni brauzerda ochish | — |
 
 ### Misollar
@@ -239,6 +258,7 @@ docker compose --profile tools pull
 | `TRIVY_IMAGE` / `GITLEAKS_IMAGE` / `SEMGREP_IMAGE` | Skaner image versiyalari |
 | `SECSCAN_SEMGREP_CONFIG` | Semgrep ruleset (`auto`, `p/owasp-top-ten`, …) |
 | `SECSCAN_EXCLUDE_DIRS` | Skandan chiqariladigan papkalar (standart: `.venv`, `node_modules`, …) |
+| `SECSCAN_MODE` | `online` (standart) yoki `offline` |
 | `SECSCAN_TIMEOUT` | Bitta skanerga ajratilgan maksimal vaqt (s) |
 | `SECSCAN_FAIL_ON` | CI gate darajasi (CLI `--fail-on` ustun keladi) |
 

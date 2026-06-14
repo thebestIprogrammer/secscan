@@ -25,6 +25,7 @@ export interface Scan {
   target: string
   type: string
   tools: string[]
+  mode?: string
   log: string[]
   summary: Summary | null
   report_url: string | null
@@ -48,6 +49,7 @@ export interface ToolInfo {
   category: string
   target_types: string[]
   default_on: boolean
+  offline_support: string // yes | cache | no
 }
 
 export interface Meta {
@@ -80,7 +82,7 @@ async function http<T>(url: string, opts?: RequestInit): Promise<T> {
 export const api = {
   meta: () => http<Meta>('/api/meta'),
   targets: () => http<{ root: string; targets: TargetItem[] }>('/api/targets'),
-  createScan: (body: { target: string; type: string; tools: string[] }) =>
+  createScan: (body: { target: string; type: string; tools: string[]; mode: string }) =>
     http<Scan>('/api/scans', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

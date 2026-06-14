@@ -38,6 +38,9 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="shu daraja+ topilsa, chiqish kodi != 0 (CI gate uchun)")
     sp.add_argument("--no-pull", action="store_true",
                     help="image'larni avtomatik yuklab olmaslik")
+    sp.add_argument("--offline", action="store_true",
+                    help="offline rejim: bazalarni yangilamaydi, internet talab "
+                         "qiladigan toollarni (Semgrep auto, OSV) o'tkazib yuboradi")
     sp.add_argument("--open", action="store_true",
                     help="tugagach HTML hisobotni brauzerda ochish")
 
@@ -63,10 +66,13 @@ def _parse_tools(raw: str) -> set:
 
 def _cmd_pull(config: Config) -> int:
     runner.ensure_docker()
-    images = [config.trivy_image, config.gitleaks_image, config.semgrep_image,
-              config.grype_image, config.osv_image, config.trufflehog_image,
-              config.bandit_image, config.hadolint_image, config.checkov_image,
-              config.dockle_image, config.nuclei_image]
+    images = [config.trivy_image, config.grype_image, config.osv_image,
+              config.syft_image, config.gitleaks_image, config.trufflehog_image,
+              config.semgrep_image, config.bandit_image, config.gosec_image,
+              config.bearer_image, config.hadolint_image, config.checkov_image,
+              config.kics_image, config.kubelinter_image, config.kubescape_image,
+              config.dockle_image, config.nuclei_image, config.testssl_image,
+              config.zap_image]
     rc = 0
     for img in images:
         print(f"-> {img} yuklanmoqda ...")
@@ -90,6 +96,7 @@ def _cmd_scan(args, config: Config) -> int:
             args.target, args.type, config.tools or None,
             config=config, output_dir=args.output,
             pull=not args.no_pull, progress=print,
+            mode="offline" if args.offline else "online",
         )
     except ValueError as exc:
         raise SystemExit(str(exc))

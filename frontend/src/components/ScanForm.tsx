@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import type { Meta, TargetItem } from '../api'
 
-const CAT_ORDER = ['sca', 'secret', 'sast', 'misconfig', 'dast']
+const CAT_ORDER = ['sca', 'sbom', 'secret', 'sast', 'misconfig', 'dast']
 const CAT_LABELS: Record<string, string> = {
   sca: "Bog'liqlik / CVE",
+  sbom: 'SBOM',
   secret: 'Maxfiy kalit',
   sast: 'Kod zaifligi',
   misconfig: 'Xato sozlama / IaC',
@@ -14,23 +15,23 @@ interface Props {
   meta: Meta | null
   targets: TargetItem[]
   busy: boolean
-  onScan: (target: string, type: string, tools: string[]) => void
+  onScan: (target: string, type: string, tools: string[], mode: string) => void
 }
 
 export function ScanForm({ meta, targets, busy, onScan }: Props) {
   const [type, setType] = useState('fs')
+  const [mode, setMode] = useState('online')
   const [target, setTarget] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
-  // Meta kelganda: standart yoqilgan toollarni belgilaymiz.
   useEffect(() => {
     if (meta) setSelected(new Set(meta.tools.filter((t) => t.default_on).map((t) => t.key)))
   }, [meta])
 
   const isImage = type === 'image'
   const isUrl = type === 'url'
+  const offline = mode === 'offline'
 
-  // Joriy nishon turini qo'llaydigan toollar, toifa bo'yicha guruhlangan.
   const toolsForType = (meta?.tools ?? []).filter((t) => t.target_types.includes(type))
   const byCat: Record<string, typeof toolsForType> = {}
   toolsForType.forEach((t) => {
@@ -51,12 +52,15 @@ export function ScanForm({ meta, targets, busy, onScan }: Props) {
       alert(isImage ? 'Image nomini kiriting.' : isUrl ? 'URL kiriting.' : 'Papka yo\'lini kiriting.')
       return
     }
-    const chosen = toolsForType.filter((x) => selected.has(x.key)).map((x) => x.key)
+    // Offline'da internet talab qiladigan toollarni yubormaymiz
+    const chosen = toolsForType
+      .filter((x) => selected.has(x.key) && !(offline && x.offline_support === 'no'))
+      .map((x) => x.key)
     if (chosen.length === 0) {
-      alert('Kamida bitta tool tanlang.')
+      alert('Kamida bitta (bu rejimda ishlaydigan) tool tanlang.')
       return
     }
-    onScan(t, type, chosen)
+    onScan(t, type, chosen, mode)
   }
 
   const fieldLabel = isImage ? 'Docker image nomi' : isUrl ? 'Web manzil (URL)' : 'Loyiha papkasi yo\'li'
@@ -70,17 +74,33 @@ export function ScanForm({ meta, targets, busy, onScan }: Props) {
 
   return (
     <>
-      {/* Tur — segmented toggle */}
-      <div className="seg" style={{ marginBottom: 16 }}>
-        <button type="button" className={type === 'fs' ? 'active' : ''} onClick={() => setType('fs')}>
-          📁 Papka / kod
-        </button>
-        <button type="button" className={isImage ? 'active' : ''} onClick={() => setType('image')}>
-          🐳 Docker image
-        </button>
-        <button type="button" className={isUrl ? 'active' : ''} onClick={() => setType('url')}>
-          🌐 URL (DAST)
-        </button>
+      {/* Tur va Rejim — segmented toggle'lar */}
+      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 16 }}>
+        <div>
+          <div className="cat-label">Nishon turi</div>
+          <div className="seg">
+            <button type="button" className={type === 'fs' ? 'active' : ''} onClick={() => setType('fs')}>
+              📁 Papka
+            </button>
+            <button type="button" className={isImage ? 'active' : ''} onClick={() => setType('image')}>
+              🐳 Image
+            </button>
+            <button type="button" className={isUrl ? 'active' : ''} onClick={() => setType('url')}>
+              🌐 URL
+            </button>
+          </div>
+        </div>
+        <div>
+          <div className="cat-label">Rejim</div>
+          <div className="seg">
+            <button type="button" className={!offline ? 'active' : ''} onClick={() => setMode('online')}>
+              Onlayn
+            </button>
+            <button type="button" className={offline ? 'active' : ''} onClick={() => setMode('offline')}>
+              Offline
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Nishon maydoni */}
@@ -116,24 +136,26 @@ export function ScanForm({ meta, targets, busy, onScan }: Props) {
         </div>
       )}
 
-      {/* Toollar — toifaga guruhlangan checkbox'lar */}
-      <div className="field-label" style={{ marginTop: 18 }}>
-        Toollar ({toolsForType.filter((t) => selected.has(t.key)).length}/{toolsForType.length})
-      </div>
+      {/* Toollar — toifaga guruhlangan */}
+      <div className="field-label" style={{ marginTop: 18 }}>Toollar</div>
       {CAT_ORDER.filter((c) => byCat[c]).map((cat) => (
         <div key={cat} style={{ marginBottom: 10 }}>
           <div className="cat-label">{CAT_LABELS[cat] ?? cat}</div>
           <div className="checks">
-            {byCat[cat].map((t) => (
-              <label key={t.key}>
-                <input
-                  type="checkbox"
-                  checked={selected.has(t.key)}
-                  onChange={() => toggleTool(t.key)}
-                />
-                {t.title}
-              </label>
-            ))}
+            {byCat[cat].map((t) => {
+              const skip = offline && t.offline_support === 'no'
+              return (
+                <label key={t.key} style={skip ? { opacity: 0.45 } : undefined}>
+                  <input
+                    type="checkbox"
+                    checked={selected.has(t.key)}
+                    onChange={() => toggleTool(t.key)}
+                  />
+                  {t.title}
+                  {skip ? ' — internet kerak' : ''}
+                </label>
+              )
+            })}
           </div>
         </div>
       ))}
@@ -148,13 +170,15 @@ export function ScanForm({ meta, targets, busy, onScan }: Props) {
       </button>
 
       <div className="hint">
-        {isImage
-          ? 'Image lokal (host daemon) da mavjud bo\'lishi kerak.'
-          : isUrl
-            ? 'DAST: ishlab turgan web-ilova manzili. URL skaner konteyneridan ochiq bo\'lishi kerak.'
-            : meta?.in_container
-              ? 'Istalgan host papkasi yo\'lini tashlang — SCAN_DIR shart emas.'
-              : 'Eslatma: papka yo\'li server ishlagan joyga nisbatan beriladi.'}
+        {offline
+          ? 'Offline rejim: bazalar yangilanmaydi (keshdan), internet talab qiladigan toollar o\'tkazib yuboriladi. Avval bir marta onlayn skan qilib keshni isiting.'
+          : isImage
+            ? 'Image lokal (host daemon) da mavjud bo\'lishi kerak.'
+            : isUrl
+              ? 'DAST: ishlab turgan web-ilova manzili.'
+              : meta?.in_container
+                ? 'Istalgan host papkasi yo\'lini tashlang — SCAN_DIR shart emas.'
+                : 'Eslatma: papka yo\'li server ishlagan joyga nisbatan beriladi.'}
       </div>
     </>
   )

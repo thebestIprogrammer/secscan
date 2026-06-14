@@ -49,11 +49,13 @@ def named_volume(name: str, target: str) -> str:
 
 
 def docker_run(image: str, command, mounts=None, timeout: int = 900,
-               entrypoint=None, user=None):
+               entrypoint=None, user=None, env=None):
     """`docker run --rm` ni mount'lar bilan ishga tushiradi va natijani qaytaradi."""
     cmd = ["docker", "run", "--rm"]
     for mount in mounts or []:
         cmd += ["--mount", mount]
+    for key, val in (env or {}).items():
+        cmd += ["-e", f"{key}={val}"]
     if entrypoint is not None:
         cmd += ["--entrypoint", entrypoint]
     if user is not None:

@@ -63,6 +63,7 @@ CATEGORY_LABELS = {
     "sast": "Kod zaifligi",
     "misconfig": "Xato sozlama",
     "dast": "DAST (web)",
+    "sbom": "SBOM",
 }
 
 

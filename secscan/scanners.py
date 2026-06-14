@@ -68,6 +68,10 @@ def _ensure_image_tar(ctx: ScanContext) -> None:
                            + (proc.stderr or "").strip())
 
 
+def _offline(ctx) -> bool:
+    return getattr(ctx.config, "mode", "online") == "offline"
+
+
 # ----------------------------------------------------------------- asosiy klass
 
 class Scanner:
@@ -80,6 +84,7 @@ class Scanner:
     entrypoint = None           # docker --entrypoint (kerak bo'lsa)
     user = None                 # docker --user (kerak bo'lsa, masalan ZAP root)
     tolerate_missing = False    # fayl yo'q + xato bo'lsa ham 0 ta deb hisoblash (til-maxsus toollar)
+    offline_support = "yes"     # yes = to'liq offline | cache = kesh kerak | no = internet kerak
     out_name = ""               # raw_dir ichidagi natija fayli
 
     def image(self, ctx):
@@ -90,6 +95,9 @@ class Scanner:
 
     def mounts(self, ctx):
         return []
+
+    def env(self, ctx):
+        return {}
 
     def prepare(self, ctx):
         pass
@@ -104,7 +112,8 @@ class Scanner:
             self.prepare(ctx)
             proc = runner.docker_run(self.image(ctx), self.command(ctx),
                                      self.mounts(ctx), timeout=ctx.config.timeout,
-                                     entrypoint=self.entrypoint, user=self.user)
+                                     entrypoint=self.entrypoint, user=self.user,
+                                     env=self.env(ctx))
         except subprocess.TimeoutExpired:
             return ScanResult(self.key, False, f"vaqt tugadi ({ctx.config.timeout}s)",
                               duration=time.time() - start)
@@ -145,6 +154,7 @@ class Scanner:
 class TrivyScanner(Scanner):
     key, title, category = "trivy", "Trivy (SCA + IaC)", "sca"
     target_types = ("fs", "image")
+    offline_support = "cache"
     out_name = "trivy.json"
 
     def image(self, ctx):
@@ -157,6 +167,8 @@ class TrivyScanner(Scanner):
     def command(self, ctx):
         op = ctx.out_prefix
         common = ["--format", "json", "--output", f"{op}/trivy.json", "--quiet"]
+        if _offline(ctx):
+            common += ["--skip-db-update", "--skip-java-db-update", "--offline-scan"]
         if ctx.target_type == "image":
             return ["image", "--input", f"{op}/image.tar", "--scanners", "vuln"] + common
         cmd = ["fs", "/src", "--scanners", "vuln,misconfig"] + common
@@ -205,10 +217,18 @@ class GrypeScanner(Scanner):
     key, title, category = "grype", "Grype (SCA)", "sca"
     target_types = ("fs", "image")
     capture_stdout = True
+    offline_support = "cache"
     out_name = "grype.json"
 
     def image(self, ctx):
         return ctx.config.grype_image
+
+    def env(self, ctx):
+        # Deterministik kesh yo'li (image HOME/user'iga bog'liq bo'lmasin)
+        e = {"GRYPE_DB_CACHE_DIR": "/grype-db"}
+        if _offline(ctx):
+            e["GRYPE_DB_AUTO_UPDATE"] = "false"
+        return e
 
     def prepare(self, ctx):
         if ctx.target_type == "image":
@@ -220,7 +240,7 @@ class GrypeScanner(Scanner):
         return [src, "-o", "json", "-q"]
 
     def mounts(self, ctx):
-        m = [runner.named_volume("secscan-grype-cache", "/root/.cache/grype")]
+        m = [runner.named_volume("secscan-grype-cache", "/grype-db")]
         if ctx.target_type == "image":
             m.append(ctx.out_mount)
         elif ctx.src_mount:
@@ -252,6 +272,7 @@ class OSVScanner(Scanner):
     key, title, category = "osv", "OSV-Scanner (SCA)", "sca"
     target_types = ("fs",)
     capture_stdout = True
+    offline_support = "no"          # OSV.dev API'siga muhtoj
     out_name = "osv.json"
 
     def image(self, ctx):
@@ -335,7 +356,10 @@ class TruffleHogScanner(Scanner):
         return ctx.config.trufflehog_image
 
     def command(self, ctx):
-        return ["filesystem", "/src", "--json", "--no-update"]
+        cmd = ["filesystem", "/src", "--json", "--no-update"]
+        if _offline(ctx):
+            cmd.append("--no-verification")   # tirik tekshirish internet talab qiladi
+        return cmd
 
     def mounts(self, ctx):
         return [ctx.src_mount] if ctx.src_mount else []
@@ -373,6 +397,7 @@ class TruffleHogScanner(Scanner):
 class SemgrepScanner(Scanner):
     key, title, category = "semgrep", "Semgrep (SAST)", "sast"
     target_types = ("fs",)
+    offline_support = "no"          # `--config auto` qoidalari registry'dan onlayn
     out_name = "semgrep.json"
 
     def image(self, ctx):
@@ -565,6 +590,7 @@ class DockleScanner(Scanner):
 class NucleiScanner(Scanner):
     key, title, category = "nuclei", "Nuclei (DAST)", "dast"
     target_types = ("url",)
+    offline_support = "cache"
     out_name = "nuclei.json"
 
     def image(self, ctx):
@@ -572,9 +598,12 @@ class NucleiScanner(Scanner):
 
     def command(self, ctx):
         op = ctx.out_prefix
-        # -duc YO'Q: birinchi marta shablonlarni yuklab olishi uchun (volume'ga keshlanadi)
-        return ["-u", ctx.target, "-jsonl", "-o", f"{op}/nuclei.json",
-                "-silent", "-no-interactsh"]
+        # -duc YO'Q (onlayn): birinchi marta shablonlarni yuklab olishi uchun (volume'ga keshlanadi)
+        cmd = ["-u", ctx.target, "-jsonl", "-o", f"{op}/nuclei.json",
+               "-silent", "-no-interactsh"]
+        if _offline(ctx):
+            cmd.append("-disable-update-check")   # keshlangan shablonlardan
+        return cmd
 
     def mounts(self, ctx):
         return [ctx.out_mount,
@@ -782,13 +811,131 @@ class GosecScanner(Scanner):
         return findings
 
 
+class BearerScanner(Scanner):
+    key, title, category = "bearer", "Bearer (data/privacy SAST)", "sast"
+    target_types = ("fs",)
+    capture_stdout = True
+    out_name = "bearer.json"
+
+    def image(self, ctx):
+        return ctx.config.bearer_image
+
+    def command(self, ctx):
+        return ["scan", "/src", "--format", "json", "--exit-code", "0"]
+
+    def mounts(self, ctx):
+        return [ctx.src_mount] if ctx.src_mount else []
+
+    def parse(self, out_file, ctx):
+        with open(out_file, encoding="utf-8") as fh:
+            raw = fh.read().strip()
+        if not raw:
+            return []
+        data = json.loads(raw)
+        findings = []
+        for sev, items in data.items():       # kalit = severity (high/medium/...)
+            if not isinstance(items, list):
+                continue
+            for f in items:
+                findings.append(Finding(
+                    scanner=self.key, category="sast", severity=Severity.parse(sev),
+                    title=f.get("title", "Ma'lumot/xavfsizlik muammosi"),
+                    identifier=f.get("id", ""), description=_trim(f.get("description", "")),
+                    file=_clean_path(f.get("filename", "")),
+                    start_line=f.get("line_number", 0) or 0,
+                    reference=f.get("documentation_url", "")))
+        return findings
+
+
+class SyftScanner(Scanner):
+    key, title, category = "syft", "Syft (SBOM)", "sbom"
+    target_types = ("fs", "image")
+    capture_stdout = True
+    out_name = "syft.json"
+
+    def image(self, ctx):
+        return ctx.config.syft_image
+
+    def prepare(self, ctx):
+        if ctx.target_type == "image":
+            _ensure_image_tar(ctx)
+
+    def command(self, ctx):
+        src = (f"docker-archive:{ctx.out_prefix}/image.tar"
+               if ctx.target_type == "image" else "dir:/src")
+        return [src, "-o", "json", "-q"]
+
+    def mounts(self, ctx):
+        if ctx.target_type == "image":
+            return [ctx.out_mount]
+        return [ctx.src_mount] if ctx.src_mount else []
+
+    def parse(self, out_file, ctx):
+        with open(out_file, encoding="utf-8") as fh:
+            data = json.load(fh)
+        arts = data.get("artifacts", []) or []
+        if not arts:
+            return []
+        names = ", ".join(f"{a.get('name')}@{a.get('version')}" for a in arts[:6])
+        if len(arts) > 6:
+            names += f", … (+{len(arts) - 6})"
+        # SBOM zaiflik emas — bitta INFO yozuv; to'liq ro'yxat raw/syft.json da
+        return [Finding(
+            scanner=self.key, category="sbom", severity=Severity.INFO,
+            title=f"SBOM: {len(arts)} ta komponent", identifier="syft-sbom",
+            description=_trim(f"Komponentlar: {names}. To'liq SBOM: raw/syft.json"),
+            file="(SBOM)")]
+
+
+class KubescapeScanner(Scanner):
+    key, title, category = "kubescape", "Kubescape (K8s compliance)", "misconfig"
+    target_types = ("fs",)
+    offline_support = "cache"           # frameworklar keshlanadi
+    tolerate_missing = True
+    out_name = "kubescape.json"
+
+    def image(self, ctx):
+        return ctx.config.kubescape_image
+
+    def command(self, ctx):
+        return ["scan", "/src", "--format", "json",
+                "--output", f"{ctx.out_prefix}/kubescape.json"]
+
+    def mounts(self, ctx):
+        m = [ctx.out_mount,
+             runner.named_volume("secscan-kubescape", "/root/.kubescape")]
+        if ctx.src_mount:
+            m.insert(0, ctx.src_mount)
+        return m
+
+    def parse(self, out_file, ctx):
+        with open(out_file, encoding="utf-8") as fh:
+            data = json.load(fh)
+        findings, seen = [], set()
+        for res in data.get("results", []) or []:
+            for c in res.get("controls", []) or []:
+                if (c.get("status") or {}).get("status") != "failed":
+                    continue
+                cid = c.get("controlID", "")
+                if cid in seen:
+                    continue
+                seen.add(cid)
+                findings.append(Finding(
+                    scanner=self.key, category="misconfig",
+                    severity=Severity.parse(c.get("severity")),
+                    title=f"{cid}: {c.get('name', '')}", identifier=cid, file="(k8s)",
+                    reference=f"https://hub.armosec.io/docs/{cid.lower()}"))
+        return findings
+
+
 # Tartibli registr (UI shu tartibda ko'rsatadi).
 TOOLS = [
     TrivyScanner, GrypeScanner, OSVScanner,                      # sca
+    SyftScanner,                                                 # sbom
     GitleaksScanner, TruffleHogScanner,                          # secret
-    SemgrepScanner, BanditScanner, GosecScanner,                 # sast
+    SemgrepScanner, BanditScanner, GosecScanner, BearerScanner,  # sast
     HadolintScanner, CheckovScanner, KicsScanner,
-    KubeLinterScanner, DockleScanner,                            # misconfig / IaC
+    KubeLinterScanner, KubescapeScanner, DockleScanner,          # misconfig / IaC
     NucleiScanner, TestSSLScanner, ZapScanner,                   # dast
 ]
 _BY_KEY = {cls.key: cls for cls in TOOLS}
@@ -797,7 +944,8 @@ _BY_KEY = {cls.key: cls for cls in TOOLS}
 def all_tools_meta():
     """Frontend uchun: barcha toollar ma'lumoti."""
     return [{"key": c.key, "title": c.title, "category": c.category,
-             "target_types": list(c.target_types), "default_on": c.default_on}
+             "target_types": list(c.target_types), "default_on": c.default_on,
+             "offline_support": c.offline_support}
             for c in TOOLS]
 
 

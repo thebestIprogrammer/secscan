@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 from . import report, runner
 from .config import Config
+from .model import ScanResult
 from .scanners import ScanContext, default_tool_keys, tools_for
 
 
@@ -34,7 +35,7 @@ def _noop(_msg: str) -> None:
 
 
 def run_scan(target, target_type="fs", tools=None, *, config=None,
-             output_dir="reports", pull=True, progress=_noop) -> ScanRun:
+             output_dir="reports", pull=True, progress=_noop, mode=None) -> ScanRun:
     """Skanerlarni ishga tushiradi, hisobot yozadi va `ScanRun` qaytaradi.
 
     Xatolarda `ValueError` yoki `runner.DockerError` ko'taradi.
@@ -44,6 +45,8 @@ def run_scan(target, target_type="fs", tools=None, *, config=None,
         config.tools = set(tools)
     if not config.tools:
         config.tools = set(default_tool_keys())
+    if mode:
+        config.mode = mode
 
     # Nishonni tekshirish / tayyorlash
     if target_type == "fs":
@@ -82,13 +85,23 @@ def run_scan(target, target_type="fs", tools=None, *, config=None,
     if not scanners:
         raise ValueError(f"'{target_type}' nishon turi uchun hech qanday tool tanlanmadi.")
 
-    if pull:
+    offline = config.mode == "offline"
+    if offline:
+        progress("Offline rejim: bazalar yangilanmaydi, internet talab qiladigan "
+                 "toollar o'tkazib yuboriladi.")
+
+    if pull and not offline:
         progress("Skaner image'lari tekshirilmoqda (kerak bo'lsa yuklanadi)...")
         for img in {s.image(ctx) for s in scanners}:
             runner.docker_pull(img)
 
     results = []
     for scanner in scanners:
+        if offline and scanner.offline_support == "no":
+            progress(f"[{scanner.key}] offline rejimda o'tkazib yuborildi (internet kerak)")
+            results.append(ScanResult(scanner.key, ok=True, skipped=True,
+                                      skip_reason="internet kerak (offline rejim)"))
+            continue
         progress(f"[{scanner.key}] ishga tushdi ...")
         result = scanner.run(ctx)
         if result.ok:
